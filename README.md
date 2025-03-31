@@ -1,6 +1,7 @@
-# Language Learning Chatbot
+# SpeakEasy-ChatBot
+--------------------------------------------------------
 
-This project is a **Language Learning Chatbot** designed to help users practice and improve their language skills. The chatbot leverages Google Translator for translations and provides feedback on user inputs.
+This project is a **SpeakEasy-ChatBot** designed to help users practice and improve their language skills. The chatbot leverages Google Translator for translations and provides feedback on user inputs.
 
 ## Features
 
