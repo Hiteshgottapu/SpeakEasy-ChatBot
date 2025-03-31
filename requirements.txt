@@ -1,6 +1,5 @@
 Flask==2.3.2
 googletrans==4.0.0-rc1
-sqlite3==0.0.1
 uuid==1.30
 
 # Specify Python version
