@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeakEasy-Bot</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="sidebar">
+        <br>
+        <br>
+        <h2>Chat History</h2>
+        <ul id="chat-history-list" class="chat-history-list"></ul> <!-- Chat history list with scrolling -->
+    </div>
+    <div class="main-container">
+        <button id="new-chat-button" class="side-button">New Chat</button>
+        {% if show_initialize %}
+        <div class="initialize-chat-container">
+            <div class="initialize-chat-header">Initialize Chatbot</div>
+            <form id="initialize-form" class="initialize-input-container">
+                <label for="target-language">Language to Learn:</label>
+                <input id="target-language" class="initialize-input" type="text" placeholder="e.g., Telugu (te)" required />
+
+                <label for="current-language">Current Language:</label>
+                <input id="current-language" class="initialize-input" type="text" placeholder="e.g., English (en)" required />
+                
+                <label for="proficiency-level">Proficiency Level:</label>
+                <select id="proficiency-level" class="initialize-input" required>
+                    <option value="" disabled selected>Select your proficiency level</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                </select>
+            </form>
+            <div class="initialize-input-container">
+                <button id="initialize-button" class="initialize-button" type="button">Start Chatbot</button>
+            </div>
+        </div>
+        {% else %}
+        <div class="chat-container">
+            <div class="chat-header">SpeakEasy Chatbot</div>
+            <div id="chat-box" class="chat-box"></div>
+            <div class="chat-input-container">
+                <div class="input-with-button">
+                    <input id="chat-input" class="chat-input" type="text" placeholder="Type your message here..." />
+                    <button id="chat-button" class="chat-button">➤</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("JavaScript loaded.");  // Debugging log
+
+            const initializeChatContainer = document.querySelector('.initialize-chat-container');
+            const chatContainer = document.querySelector('.chat-container');
+
+            // Check if the initialize container should be shown
+            const urlParams = new URLSearchParams(window.location.search);
+            const showInitialize = urlParams.get('show_initialize') === 'true';
+
+            if (showInitialize) {
+                console.log("Displaying initialize container due to query parameter.");  // Debugging log
+                if (initializeChatContainer) {
+                    initializeChatContainer.style.display = 'block';
+                }
+                if (chatContainer) {
+                    chatContainer.style.display = 'none';
+                }
+            }
+        });
+
+        console.log("JavaScript loaded.");  // Debugging log
+
+        const chatBox = document.getElementById('chat-box');
+        const chatInput = document.getElementById('chat-input');
+        const chatButton = document.getElementById('chat-button');
+        const newChatButton = document.getElementById('new-chat-button');
+        const chatHistoryList = document.getElementById('chat-history-list');
+        const initializeButton = document.getElementById('initialize-button');
+
+        if (!chatBox || !chatInput || !chatButton || !newChatButton || !chatHistoryList) {
+            console.error("One or more required DOM elements are missing.");
+        } else {
+            console.log("All required DOM elements are present.");
+        }
+
+        if (initializeButton) {
+            initializeButton.addEventListener('click', async () => {
+                console.log("Initialize button clicked.");  // Debugging log
+                const targetLanguage = document.getElementById('target-language')?.value.trim();
+                const currentLanguage = document.getElementById('current-language')?.value.trim();
+                const proficiencyLevel = document.getElementById('proficiency-level')?.value;
+
+                if (!targetLanguage || !currentLanguage || !proficiencyLevel) {
+                    alert("Please fill out all fields.");
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/index', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            target_language: targetLanguage,
+                            current_language: currentLanguage,
+                            proficiency_level: proficiencyLevel
+                        })
+                    });
+
+                    const data = await response.json();
+                    console.log("Initialize chatbot response:", data);  // Debugging log
+
+                    if (response.ok) {
+
+                        // Refresh the page to load the chatbot container
+                        window.location.href = "/?show_initialize=false";
+                    } else {
+                        alert("Error initializing chatbot: " + data.error);
+                    }
+                } catch (error) {
+                    console.error("Error initializing chatbot:", error);
+                    alert("An unexpected error occurred. Please try again.");
+                }
+            });
+        }
+
+        const loadChatHistory = async () => {
+            try {
+                const response = await fetch('/chat-history');
+                const history = await response.json();
+
+                console.log("Chat history response:", history); // Debugging log
+
+                if (!chatHistoryList || !chatBox) {
+                    console.error("Chat history elements are not available in the DOM.");
+                    return;
+                }
+
+                chatHistoryList.innerHTML = ''; // Clear existing history in the sidebar
+                chatBox.innerHTML = ''; // Clear the chat box
+
+                if (history.message) {
+                    console.log(history.message);  // Debugging log
+                    chatBox.innerHTML = `<div class="bot-message"><strong>${history.message}</strong></div>`;
+                    return;
+                }
+
+                for (const [sessionId, chats] of Object.entries(history)) {
+                    const sessionHeader = document.createElement('li');
+                    sessionHeader.textContent = `Session ID: ${sessionId}`;
+                    sessionHeader.style.fontWeight = 'bold';
+                    sessionHeader.style.cursor = 'pointer';
+                    sessionHeader.addEventListener('click', () => loadChatIntoBox(sessionId, chats));
+                    chatHistoryList.appendChild(sessionHeader);
+                }
+
+                chatHistoryList.scrollTop = chatHistoryList.scrollHeight;
+            } catch (error) {
+                console.error("Failed to load chat history from database:", error);
+                if (chatBox) {
+                    chatBox.innerHTML = `<div class="bot-message"><strong>Failed to load chat history.</strong></div>`;
+                }
+            }
+        };
+
+        const loadChatIntoBox = (sessionId, chats) => {
+            if (!chatBox) {
+                console.error("Chat box element is missing.");
+                return;
+            }
+
+            console.log(`Loading chat for session ID: ${sessionId}`); // Debugging log
+
+            chatBox.innerHTML = ''; // Clear the chat box
+            chats.forEach((chat) => {
+                chatBox.innerHTML += `<div class="message user-message">${chat.user_input}</div>`;
+                chatBox.innerHTML += `<div class="message bot-message">${chat.bot_response}</div>`;
+            });
+            chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the bottom of the chat box
+        };
+
+        // Call loadChatHistory on window load
+        window.addEventListener('load', loadChatHistory);
+
+        window.addEventListener('load', async () => {
+            const sessionId = "{{ session_id }}"; // Get session ID from the server
+            if (sessionId) {
+                try {
+                    const response = await fetch(`/chat-history`);
+                    const history = await response.json();
+
+                    if (history[sessionId]) {
+                        loadChatIntoBox(sessionId, history[sessionId]); // Load chat history for the session
+                    }
+                } catch (error) {
+                    console.error("Failed to load chat history:", error);
+                }
+            } else {
+                console.log("No active session. Please initialize the chatbot.");
+            }
+        });
+
+        const sendMessage = async () => {
+            const userInput = chatInput.value.trim();
+            if (!userInput) return;
+
+            // Display user input in chat box
+            chatBox.innerHTML += `<div class="user-message">${userInput}</div>`;
+            chatInput.value = '';
+
+            try {
+                // Send user input to Flask backend
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: userInput })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.error) {
+                    chatBox.innerHTML += `<div class="bot-message"><strong>Error:</strong> ${data.error}</div>`;
+                } else {
+                    // Display bot response and mistake (if any)
+                    chatBox.innerHTML += `
+                        <div class="bot-response-container" style="margin-bottom: 10px;">
+                            <div class="bot-message">${data.response}</div>
+                            ${data.mistake ? `<div class="bot-message"><strong>Correction:</strong> ${data.mistake.correction}</div>` : ''}
+                            <div class="feedback-buttons" style="display: flex; gap: 2px; align-items: center; margin-top: 5px;">
+                                <button class="like-button" style="border: none; background: none; cursor: pointer; display: flex; align-items: center; gap: 5px; color: #f5deb3;">
+                                    <span style="font-size: 1.2em;">👍🏻</span> 
+                                </button>
+                                <button class="dislike-button" style="border: none; background: none; cursor: pointer; display: flex; align-items: center; gap: 5px; color: #f5deb3;">
+                                    <span style="font-size: 1.2em;">👎🏻</span> 
+                                </button>
+                                <button class="speaker-button" style="border: none; background: none; cursor: pointer; display: flex; align-items: center; gap: 5px; color: #f5deb3;" onclick="playBotResponse('${data.response}', '${data.language_code}')">
+                                    <span style="font-size: 1.3em;">🗣</span> 
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Error sending message:", error);
+                chatBox.innerHTML += `<div class="bot-message"><strong>Error:</strong> Failed to send message.</div>`;
+            }
+
+            // Scroll to the bottom of the chat box
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
+
+        if (chatButton) {
+            chatButton.addEventListener('click', sendMessage);
+        }
+
+        chatInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+
+        const attachEventListeners = () => {
+            if (newChatButton) {
+                newChatButton.addEventListener('click', async () => {
+                    console.log("New Chat button clicked.");  // Debugging log
+
+                    try {
+                        const response = await fetch('/new-chat', { method: 'POST' });
+                        if (!response.ok) {
+                            throw new Error(`Failed to start a new chat session. Status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        console.log("New chat session response:", data);  // Debugging log
+
+                        if (data.redirect_url) {
+                            // Redirect to the URL provided by the backend
+                            window.location.href = data.redirect_url;
+                        } else {
+                            alert("Failed to start a new chat session.");
+                            console.error("Response did not contain a redirect_url:", data);  // Debugging log
+                        }
+                    } catch (error) {
+                        console.error("Error starting a new chat session:", error);
+                        alert("An unexpected error occurred. Please try again.");
+                    }
+                });
+            }
+
+            if (initializeButton) {
+                initializeButton.addEventListener('click', async () => {
+                    const targetLanguage = document.getElementById('target-language')?.value.trim();
+                    const currentLanguage = document.getElementById('current-language')?.value.trim();
+                    const proficiencyLevel = document.getElementById('proficiency-level')?.value;
+
+                    if (!targetLanguage || !currentLanguage || !proficiencyLevel) {
+                        alert("Please fill out all fields.");
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch('/index', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                target_language: targetLanguage,
+                                current_language: currentLanguage,
+                                proficiency_level: proficiencyLevel
+                            })
+                        });
+
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            window.location.href = "/index?show_initialize=false";
+                        } else {
+                            alert("Error initializing chatbot: " + data.error);
+                        }
+                    } catch (error) {
+                        console.error("Error initializing chatbot:", error);
+                        alert("An unexpected error occurred. Please try again.");
+                    }
+                });
+            }
+
+            // Add event listener for Enter key in the initialize form
+            const initializeForm = document.getElementById('initialize-form');
+            if (initializeForm) {
+                initializeForm.addEventListener('keypress', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        if (initializeButton) {
+                            initializeButton.click();
+                        }
+                    }
+                });
+            }
+        };
+
+        // Attach event listeners after DOM content is loaded
+        document.addEventListener('DOMContentLoaded', attachEventListeners);
+
+        // Load chat history on page load
+        window.onload = () => loadChatHistory();
+
+        // Add the playBotResponse function
+        function playBotResponse(response, languageCode) {
+            if (!response) {
+                console.error("No response provided for playback.");
+                return;
+            }
+            const utterance = new SpeechSynthesisUtterance(response);
+            utterance.lang = languageCode; // Use the target language code
+            speechSynthesis.speak(utterance);
+        }   
+    </script>
+</body>
+</html>
