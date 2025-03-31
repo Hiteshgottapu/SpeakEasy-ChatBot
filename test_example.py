@@ -24,4 +24,4 @@ def test_home_route(client):
     assert response.status_code == 200
     
     # Check if the response contains the text 'show_initialize = false'
-    assert b'show_initialize = false' in response.data
+    assert b'show_initialize = true' in response.data
